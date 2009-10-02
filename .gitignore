@@ -20,7 +20,5 @@ tm*.lck
 tm.out
 *.tm.epoch
 .DS_Store
-*.iws
-*.ipr
-*.iml
+.idea
 
