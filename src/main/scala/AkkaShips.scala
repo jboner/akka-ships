@@ -1,6 +1,6 @@
-package se.scalablesolutions.akka
+package training.ships.akka
 
-import actor.Actor
+import se.scalablesolutions.akka.actor.Actor
 import java.util.Date
 
 
