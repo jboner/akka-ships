@@ -1,7 +1,10 @@
-package training.ships.akka
+package training.ships.akka_rest
 
-import se.scalablesolutions.akka.actor.Actor
 import java.util.Date
+
+import se.scalablesolutions.akka.actor.{OneForOneStrategy, Actor}
+import se.scalablesolutions.akka.config.ScalaConfig._
+import se.scalablesolutions.akka.Kernel
 
 
 // =============================
@@ -15,6 +18,9 @@ case object CurrentPort extends Event
 
 case object Replay extends Event
 case class ReplayUpTo(date: Date) extends Event
+
+case class Register(ship: Ship) extends Event
+case object Kill
 
 abstract case class StateChangeEvent(val occurred: Date) extends Event {
   val recorded = new Date
@@ -47,13 +53,15 @@ object Country {
 }
 
 class Ship(val shipName: String, private var currentDestination: Port) extends Actor {
-  
+  lifeCycleConfig = Some(LifeCycle(Permanent, 100))
+
   def receive: PartialFunction[Any, Unit] = {
     case ArrivalEvent(time, port, _) =>
-      log.info("%s ARRIVED at port %n @ %n", toString, port, time)
+      log.info("%s ARRIVED at port %s @ %s", toString, port, time)
+      currentDestination = port
 
     case DepartureEvent(time, port, _) =>
-      log.info("%s DEPARTED from port %n @ %n", toString, port, time)
+      log.info("%s DEPARTED from port %s @ %s", toString, port, time)
       currentDestination = Port.AT_SEA
 
     case Reset =>
@@ -62,10 +70,13 @@ class Ship(val shipName: String, private var currentDestination: Port) extends A
     case CurrentPort =>
       reply(currentDestination)
 
+    case Kill =>
+      throw new RuntimeException("I'm killed: " + this)
+
     case unknown =>
       log.error("Unknown event: %s", unknown)
   }
-
+  
   override def toString = "Ship(" + shipName + ")"
 }
 
@@ -73,7 +84,15 @@ class Ship(val shipName: String, private var currentDestination: Port) extends A
 // Event processor and storage
 // =============================
 
-class EventProcessor extends Actor {
+object EventProcessor extends Actor {
+  faultHandler = Some(OneForOneStrategy(5, 5000))
+  trapExit = true
+  start
+
+// ------- NEW -------
+  Kernel.startREST
+// ------- NEW -------
+
   private var eventLog: List[StateChangeEvent] = Nil
 
   def receive: PartialFunction[Any, Unit] = {
@@ -86,6 +105,9 @@ class EventProcessor extends Actor {
 
     case ReplayUpTo(date) =>
       eventLog.reverse.filter(_.occurred.getTime <= date.getTime).foreach(_.process)
+
+    case Register(ship) =>
+      startLink(ship)
 
     case unknown =>
       log.error("Unknown event: %s", unknown)
