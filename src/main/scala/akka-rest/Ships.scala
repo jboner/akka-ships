@@ -48,32 +48,32 @@ object Port {
   val AT_SEA = new Port("AT SEA")
 }
 
-class Ship extends Actor {
+class Ship(val shipName: String, private var currentDestination: Port) extends Actor {
   lifeCycleConfig = Some(LifeCycle(Permanent, 100))
 
-  private var shipName: String = _
-  private var currentDestination: Port = _
+  log.info("Created %s", toString)
 
   def receive: PartialFunction[Any, Unit] = {
-
-    case NewShip(name, port) =>
-      shipName = name
-      currentDestination = port
 
     case ArrivalEvent(time, port, _) =>
       currentDestination = port
 // ------- NEW -------
-      reply(String.format("%s ARRIVED at port %s @ %s", toString, port, time))
+      val message = String.format("%s ARRIVED at port %s @ %s", toString, port, time)
+      log.info(message)
+      reply(message)
 // ------- NEW -------
 
     case DepartureEvent(time, port, _) =>
       currentDestination = Port.AT_SEA
 // ------- NEW -------
-      reply(String.format("%s DEPARTED from port %s @ %s", toString, port, time))
+      val message = String.format("%s DEPARTED from port %s @ %s", toString, port, time)
+      log.info(message)
+      reply(message)
 // ------- NEW -------
 
     case Kill =>
-      throw new RuntimeException("I'm killed: " + this)
+      log.error("%s has been killed", toString)
+      throw new RuntimeException("I'm killed: " + toString)
 
     case unknown =>
       log.error("Unknown event: %s", unknown)

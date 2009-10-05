@@ -58,16 +58,21 @@ class EventProcessor extends Actor {
               @PathParam("port") port: String) = event match {
 
     case "create" =>
-      val ship = (this !! NewShip(shipName, new Port(port))).getOrElse(<error>Could not create a new ship</error>)
-      shipRepository ++ shipName -> ship
-      <success>Created new ship [{shipName}]</success>
+      val reply = this !! NewShip(shipName, new Port(port))
+      reply match {
+        case None =>
+          <error>Could not create a new ship</error>
+        case Some(ship) =>
+          shipRepository += shipName -> ship
+          <success>Created new ship [{shipName}]</success>
+      }
 
     case "depart" =>
       shipRepository.get(shipName) match {
         case Some(ship) =>
           val reply = this !! DepartureEvent(new Date, new Port(port), ship)
           reply match {
-            case Some(result) => <success>result</success>
+            case Some(result) => <success>{result}</success>
             case None =>         <error>Error in EventProcessor</error>
           }
         case None => <error>Ship [{shipName}] has not been created yet</error>
@@ -78,7 +83,7 @@ class EventProcessor extends Actor {
         case Some(ship) =>
           val reply = this !! ArrivalEvent(new Date, new Port(port), ship)
           reply match {
-            case Some(result) => <success>result</success>
+            case Some(result) => <success>{result}</success>
             case None =>         <error>Error in EventProcessor</error>
           }
         case None => <error>Ship [{shipName}] has not been created yet</error>
@@ -96,9 +101,9 @@ class EventProcessor extends Actor {
       reply(event.process)
 // ------- NEW -------
     
-    case init @ NewShip(_,_) =>
-      val ship = spawnLinkRemote(classOf[Ship], "localhost", 9999)
-      ship ! init
+    case NewShip(shipName, port) =>
+      val ship = new Ship(shipName, port)
+      startLink(ship)
       reply(ship)
 
     case unknown =>
