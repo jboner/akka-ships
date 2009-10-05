@@ -25,7 +25,7 @@ case object CurrentPort extends Event
 case object Replay extends Event
 case class ReplayUpTo(date: Date) extends Event
 
-case object Kill
+case object Sink
 
 abstract case class StateChangeEvent(val occurred: Date) extends Event {
   val recorded = new Date
@@ -83,7 +83,7 @@ class Ship extends Actor {
     case CurrentPort =>
       reply(currentDestination)
 
-    case Kill =>
+    case Sink =>
       throw new RuntimeException("I'm killed: " + this)
 
     case unknown =>

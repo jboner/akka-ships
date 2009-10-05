@@ -35,7 +35,7 @@ class Simulation extends TestCase {
     println("\n===> departurePutsShipOutToSea")
 
 // ------- NEW -------
-    shipKR ! Kill
+    shipKR ! Sink
 // ------- NEW -------
 
     EventProcessor ! DepartureEvent(new Date(2009, 2, 4), portLA, shipKR)

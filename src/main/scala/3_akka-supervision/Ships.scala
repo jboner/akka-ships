@@ -20,7 +20,7 @@ case class ReplayUpTo(date: Date) extends Event
 
 // ------- NEW -------
 case class Register(ship: Ship) extends Event
-case object Kill
+case object Sink
 // ------- NEW -------
 
 abstract case class StateChangeEvent(val occurred: Date) extends Event {
@@ -74,7 +74,7 @@ class Ship(val shipName: String, private var currentDestination: Port) extends A
       reply(currentDestination)
 
 // ------- NEW -------
-    case Kill =>
+    case Sink =>
       throw new RuntimeException("I'm killed: " + this)
 // ------- NEW -------
 

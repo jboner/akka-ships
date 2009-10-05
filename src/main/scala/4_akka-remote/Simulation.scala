@@ -33,7 +33,7 @@ class Simulation extends TestCase {
 
     println("\n===> departurePutsShipOutToSea")
 
-//    shipKR ! Kill
+//    shipKR ! Sink
 
     EventProcessor ! DepartureEvent(new Date(2009, 2, 4), portLA, shipKR)
     Thread.sleep(500)

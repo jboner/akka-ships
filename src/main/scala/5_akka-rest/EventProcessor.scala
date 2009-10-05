@@ -8,7 +8,6 @@ import scala.collection.mutable.HashMap
 import javax.ws.rs.{PathParam, GET, Produces, Path}
 import java.util.Date
 
-// ------- NEW -------
 class Boot {
   object factory extends SupervisorFactory {
     override def getSupervisorConfig: SupervisorConfig = {
@@ -23,51 +22,70 @@ class Boot {
   val supervisor = factory.newSupervisor
   supervisor.startSupervisor
 }
-// ------- NEW -------
 
 // =============================
 // Event processor and storage
 // =============================
 
-// ------- NEW -------
 /**
  * Usage:
  * <pre>
  * curl http://localhost:9998/ships/create/MyShip/London
  * curl http://localhost:9998/ships/depart/MyShip/Amsterdam
+ * curl http://localhost:9998/ships/arrive/MyShip/Stockholm
+ * curl http://localhost:9998/ships/destination/MyShip/_
+ * curl http://localhost:9998/ships/sink/MyShip/_
  * </pre>
  */
 @Path("/ships/{event}/{shipName}/{port}")
-// ------- NEW -------
 class EventProcessor extends Actor {
   faultHandler = Some(OneForOneStrategy(5, 5000))
   trapExit = true
   start
 
   private var eventLog: List[StateChangeEvent] = Nil
-
-// ------- NEW -------
   private val shipRepository = new HashMap[String, Ship]
-// ------- NEW -------
 
-// ------- NEW -------
+  // Internal messages for the actor; one for each "method", dispatched as an actor message
+  private case class Depart(shipName: String, port: String)
+  private case class Arrive(shipName: String, port: String)
+  private case class Destination(shipName: String)
+  private case class Sink(shipName: String)
+
   @GET
   @Produces(Array("text/xml"))
   def process(@PathParam("event") event: String,
               @PathParam("shipName") shipName: String,
               @PathParam("port") port: String) = event match {
-
     case "create" =>
       val reply = this !! NewShip(shipName, new Port(port))
       reply match {
         case None =>
           <error>Could not create a new ship</error>
         case Some(ship) =>
-          shipRepository += shipName -> ship
           <success>Created new ship [{shipName}]</success>
       }
+    case "depart" => this !! Depart(shipName, port)
+    case "arrive" => this !! Arrive(shipName, port)
+    case "destination" => this !! Destination(shipName)
+    case "sink" => Sink(shipName)
 
-    case "depart" =>
+    case unknown =>
+      <error>Unknown event: {unknown}</error>
+  }
+
+  def receive: PartialFunction[Any, Unit] = {
+    case event: StateChangeEvent =>
+      eventLog ::= event
+      reply(event.process)
+
+    case NewShip(shipName, port) =>
+      val ship = new Ship(shipName, port)
+      startLink(ship)
+      shipRepository += shipName -> ship
+      reply(ship)
+
+    case Depart(shipName, port) => reply {
       shipRepository.get(shipName) match {
         case Some(ship) =>
           val reply = this !! DepartureEvent(new Date, new Port(port), ship)
@@ -77,8 +95,9 @@ class EventProcessor extends Actor {
           }
         case None => <error>Ship [{shipName}] has not been created yet</error>
       }
+    }
     
-    case "arrive" =>
+    case Arrive(shipName, port) => reply {
       shipRepository.get(shipName) match {
         case Some(ship) =>
           val reply = this !! ArrivalEvent(new Date, new Port(port), ship)
@@ -88,23 +107,25 @@ class EventProcessor extends Actor {
           }
         case None => <error>Ship [{shipName}] has not been created yet</error>
       }
+    }
 
-    case unknown =>
-      <error>Unknown event: {unknown}</error>
-  }
-// ------- NEW -------
+    case Destination(shipName) => reply {
+      shipRepository.get(shipName) match {
+        case Some(ship) =>
+          val reply = ship !! CurrentPort
+          reply match {
+            case Some(result) => <success>{result}</success>
+            case None =>         <error>Error in EventProcessor</error>
+          }
+        case None => <error>Ship [{shipName}] has not been created yet</error>
+      }
+    }
 
-  def receive: PartialFunction[Any, Unit] = {
-    case event: StateChangeEvent =>
-      eventLog ::= event
-// ------- NEW -------
-      reply(event.process)
-// ------- NEW -------
-    
-    case NewShip(shipName, port) =>
-      val ship = new Ship(shipName, port)
-      startLink(ship)
-      reply(ship)
+    case Sink(shipName) =>
+      shipRepository.get(shipName) match {
+        case Some(ship) => ship ! Sink
+        case None => {}
+      }
 
     case unknown =>
       log.error("Unknown event: %s", unknown)

@@ -20,7 +20,8 @@ case object Replay extends Event
 case class ReplayUpTo(date: Date) extends Event
 
 case class Register(ship: Ship) extends Event
-case object Kill
+
+case object Sink
 
 abstract case class StateChangeEvent(val occurred: Date) extends Event {
   val recorded = new Date
@@ -29,13 +30,13 @@ abstract case class StateChangeEvent(val occurred: Date) extends Event {
 
 case class DepartureEvent(val time: Date, val port: Port, val ship: Ship) extends StateChangeEvent(time) {
 // ------- NEW -------
-  override def process: String = (ship !! this).getOrElse("<error>Could not move Ship</error")
+  override def process: String = (ship !! this).getOrElse(throw new RuntimeException("Could not move Ship"))
 // ------- NEW -------
 }
 
 case class ArrivalEvent(val time: Date, val port: Port, val ship: Ship) extends StateChangeEvent(time) {
 // ------- NEW -------
-  override def process: String = (ship !! this).getOrElse("<error>Could not move Ship</error")
+  override def process: String = (ship !! this).getOrElse(throw new RuntimeException("Could not move Ship"))
 // ------- NEW -------
 }
 
@@ -58,22 +59,21 @@ class Ship(val shipName: String, private var currentDestination: Port) extends A
     case ArrivalEvent(time, port, _) =>
       currentDestination = port
 // ------- NEW -------
-      val message = String.format("%s ARRIVED at port %s @ %s", toString, port, time)
-      log.info(message)
-      reply(message)
+      reply(String.format("%s ARRIVED at port %s @ %s", toString, port, time))
 // ------- NEW -------
 
     case DepartureEvent(time, port, _) =>
       currentDestination = Port.AT_SEA
 // ------- NEW -------
-      val message = String.format("%s DEPARTED from port %s @ %s", toString, port, time)
-      log.info(message)
-      reply(message)
+      reply(String.format("%s DEPARTED from port %s @ %s", toString, port, time))
 // ------- NEW -------
 
-    case Kill =>
+    case Sink =>
       log.error("%s has been killed", toString)
       throw new RuntimeException("I'm killed: " + toString)
+
+    case CurrentPort =>
+      reply(currentDestination)
 
     case unknown =>
       log.error("Unknown event: %s", unknown)

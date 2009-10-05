@@ -2,8 +2,7 @@ package training.ships.akka
 
 import se.scalablesolutions.akka.actor.Actor
 import java.util.Date
-
-
+import se.scalablesolutions.akka.state.{PersistentState, MongoStorageConfig}
 // =============================
 // Define the events
 // =============================
