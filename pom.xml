@@ -30,21 +30,6 @@
       <version>0.6</version>
     </dependency>
     <dependency>
-      <artifactId>akka-amqp</artifactId>
-      <groupId>se.scalablesolutions.akka</groupId>
-      <version>0.6</version>
-    </dependency>
-    <dependency>
-      <artifactId>akka-camel</artifactId>
-      <groupId>se.scalablesolutions.akka</groupId>
-      <version>0.6</version>
-    </dependency>
-    <dependency>
-      <artifactId>akka-security</artifactId>
-      <groupId>se.scalablesolutions.akka</groupId>
-      <version>0.6</version>
-    </dependency>
-    <dependency>
       <artifactId>akka-kernel</artifactId>
       <groupId>se.scalablesolutions.akka</groupId>
       <version>0.6</version>
@@ -158,7 +143,7 @@
       <version>1.5.1</version>
     </dependency>
 
-   <!-- For third-party logging -->
+    <!-- For third-party logging -->
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-log4j12</artifactId>
@@ -315,12 +300,21 @@
                 <requireJavaVersion>
                   <version>1.5.0</version>
                 </requireJavaVersion>
-              </rules>    
+              </rules>
             </configuration>
           </execution>
         </executions>
       </plugin>
     </plugins>
+    <resources>
+      <resource>
+        <filtering>false</filtering>
+        <directory>.</directory>
+        <includes>
+          <include>akka.conf</include>
+        </includes>
+      </resource>
+    </resources>
     <pluginManagement>
       <plugins>
         <plugin>

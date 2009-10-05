@@ -2,16 +2,16 @@ package training.ships.akka_rest
 
 import java.util.Date
 
-import se.scalablesolutions.akka.actor.{OneForOneStrategy, Actor}
 import se.scalablesolutions.akka.config.ScalaConfig._
-import se.scalablesolutions.akka.Kernel
-
+import se.scalablesolutions.akka.actor.Actor
 
 // =============================
 // Define the events
 // =============================
 
-sealed trait Event
+@serializable sealed trait Event
+
+case class NewShip(shipName: String, destination: Port) extends Event
 
 case object Reset extends Event
 case object CurrentPort extends Event
@@ -24,51 +24,53 @@ case object Kill
 
 abstract case class StateChangeEvent(val occurred: Date) extends Event {
   val recorded = new Date
-
-  def process: Unit
+  def process: String
 }
 
 case class DepartureEvent(val time: Date, val port: Port, val ship: Ship) extends StateChangeEvent(time) {
-  override def process = ship ! this
+// ------- NEW -------
+  override def process: String = (ship !! this).getOrElse("<error>Could not move Ship</error")
+// ------- NEW -------
 }
 
 case class ArrivalEvent(val time: Date, val port: Port, val ship: Ship) extends StateChangeEvent(time) {
-  override def process = ship ! this
+// ------- NEW -------
+  override def process: String = (ship !! this).getOrElse("<error>Could not move Ship</error")
+// ------- NEW -------
 }
 
 // =============================
 // Define the domain: Ship, Cargo, Port, Country
 // =============================
 
-case class Port(val city: String, val country: Country)
+case class Port(val city: String)
 object Port {
-  val AT_SEA = new Port("AT SEA", Country.AT_SEA)
+  val AT_SEA = new Port("AT SEA")
 }
 
-case class Country(val name: String)
-object Country {
-  val US = new Country("US")
-  val CANADA = new Country("CANADA")
-  val AT_SEA = new Country("AT_SEA")
-}
-
-class Ship(val shipName: String, private var currentDestination: Port) extends Actor {
+class Ship extends Actor {
   lifeCycleConfig = Some(LifeCycle(Permanent, 100))
 
+  private var shipName: String = _
+  private var currentDestination: Port = _
+
   def receive: PartialFunction[Any, Unit] = {
-    case ArrivalEvent(time, port, _) =>
-      log.info("%s ARRIVED at port %s @ %s", toString, port, time)
+
+    case NewShip(name, port) =>
+      shipName = name
       currentDestination = port
 
+    case ArrivalEvent(time, port, _) =>
+      currentDestination = port
+// ------- NEW -------
+      reply(String.format("%s ARRIVED at port %s @ %s", toString, port, time))
+// ------- NEW -------
+
     case DepartureEvent(time, port, _) =>
-      log.info("%s DEPARTED from port %s @ %s", toString, port, time)
       currentDestination = Port.AT_SEA
-
-    case Reset =>
-      log.info("%s has been reset", toString)
-
-    case CurrentPort =>
-      reply(currentDestination)
+// ------- NEW -------
+      reply(String.format("%s DEPARTED from port %s @ %s", toString, port, time))
+// ------- NEW -------
 
     case Kill =>
       throw new RuntimeException("I'm killed: " + this)
@@ -78,38 +80,4 @@ class Ship(val shipName: String, private var currentDestination: Port) extends A
   }
   
   override def toString = "Ship(" + shipName + ")"
-}
-
-// =============================
-// Event processor and storage
-// =============================
-
-object EventProcessor extends Actor {
-  faultHandler = Some(OneForOneStrategy(5, 5000))
-  trapExit = true
-  start
-
-// ------- NEW -------
-  Kernel.startREST
-// ------- NEW -------
-
-  private var eventLog: List[StateChangeEvent] = Nil
-
-  def receive: PartialFunction[Any, Unit] = {
-    case event: StateChangeEvent =>
-      event.process
-      eventLog ::= event
-
-    case Replay =>
-      eventLog.reverse.foreach(_.process)
-
-    case ReplayUpTo(date) =>
-      eventLog.reverse.filter(_.occurred.getTime <= date.getTime).foreach(_.process)
-
-    case Register(ship) =>
-      startLink(ship)
-
-    case unknown =>
-      log.error("Unknown event: %s", unknown)
-  }
 }
