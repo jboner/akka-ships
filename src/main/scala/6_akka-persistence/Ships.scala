@@ -45,22 +45,18 @@ class Ship(val shipName: String, private var port: Port) extends Actor {
   lifeCycleConfig = Some(LifeCycle(Permanent, 100))
 
   makeTransactionRequired
-
-  // store the Ship's state; currentDestination in backend storage
-  private val currentDestination = PersistentState.newRef(CassandraStorageConfig())
-  currentDestination.uuid = toString
-  currentDestination.swap(port.name)
+  private var currentDestination: Port = port
 
   log.info("Created %s", toString)
 
   def receive: PartialFunction[Any, Unit] = {
 
     case ArrivalEvent(time, port, _) =>
-      currentDestination.swap(port.name)
+      currentDestination = port
       reply(String.format("%s ARRIVED at port %s @ %s", toString, port, time))
 
     case DepartureEvent(time, port, _) =>
-      currentDestination.swap(Port.AT_SEA.name)
+      currentDestination = Port.AT_SEA
       reply(String.format("%s DEPARTED from port %s @ %s", toString, port, time))
 
     case Sink =>
@@ -68,7 +64,7 @@ class Ship(val shipName: String, private var port: Port) extends Actor {
       throw new RuntimeException("I'm killed: " + toString)
 
     case CurrentPort =>
-      reply(new Port(currentDestination.getOrElse("not defined").asInstanceOf[String]))
+      reply(currentDestination)
 
     case unknown =>
       log.error("Unknown event: %s", unknown)
