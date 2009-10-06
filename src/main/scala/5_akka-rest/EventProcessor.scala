@@ -1,31 +1,11 @@
 package training.ships.akka_rest
 
-import se.scalablesolutions.akka.actor.{SupervisorFactory, OneForOneStrategy, Actor}
-import se.scalablesolutions.akka.config.ScalaConfig._
+import se.scalablesolutions.akka.actor.{OneForOneStrategy, Actor}
 
 import scala.collection.mutable.HashMap
 
 import javax.ws.rs.{PathParam, GET, Produces, Path}
 import java.util.Date
-
-class Boot {
-  object factory extends SupervisorFactory {
-    override def getSupervisorConfig: SupervisorConfig = {
-      SupervisorConfig(
-        RestartStrategy(OneForOne, 3, 100),
-        Supervise(
-          new EventProcessor,
-          LifeCycle(Permanent, 100)) ::
-        Nil)
-    }
-  }
-  val supervisor = factory.newSupervisor
-  supervisor.startSupervisor
-}
-
-// =============================
-// Event processor and storage
-// =============================
 
 /**
  * Usage:

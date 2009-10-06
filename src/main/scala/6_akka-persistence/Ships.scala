@@ -13,29 +13,21 @@ import se.scalablesolutions.akka.state.{CassandraStorageConfig, PersistentState}
 @serializable sealed trait Event
 
 case object Init extends Event
-
 case class NewShip(name: String, port: String) extends Event
-
 case object Reset extends Event
 case object CurrentPort extends Event
-
 case object Replay extends Event
 case class ReplayUpTo(date: Date) extends Event
-
 case class Register(ship: Ship) extends Event
-
 case object Sink
-case class Sink(shipName: String)
 
 abstract case class StateChangeEvent(val occurred: Date) extends Event {
   val recorded = new Date
   def process: String
 }
-
 case class DepartureEvent(val time: Date, val port: Port, val ship: Ship) extends StateChangeEvent(time) {
   override def process: String = (ship !! this).getOrElse(throw new RuntimeException("Could not move Ship"))
 }
-
 case class ArrivalEvent(val time: Date, val port: Port, val ship: Ship) extends StateChangeEvent(time) {
   override def process: String = (ship !! this).getOrElse(throw new RuntimeException("Could not move Ship"))
 }
@@ -53,6 +45,8 @@ class Ship(val shipName: String, private var port: Port) extends Actor {
   lifeCycleConfig = Some(LifeCycle(Permanent, 100))
 
   makeTransactionRequired
+
+  // store the Ship's state; currentDestination in backend storage
   private val currentDestination = PersistentState.newRef(CassandraStorageConfig())
   currentDestination.uuid = toString
   currentDestination.swap(port.name)
@@ -74,8 +68,6 @@ class Ship(val shipName: String, private var port: Port) extends Actor {
       throw new RuntimeException("I'm killed: " + toString)
 
     case CurrentPort =>
-      println("____________ " + currentDestination.getOrElse("not defined"))
-      println("____________ " + currentDestination.get)
       reply(new Port(currentDestination.getOrElse("not defined").asInstanceOf[String]))
 
     case unknown =>

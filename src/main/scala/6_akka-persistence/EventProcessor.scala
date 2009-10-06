@@ -1,33 +1,11 @@
 package training.ships.akka_persistence
 
-import se.scalablesolutions.akka.actor.{SupervisorFactory, OneForOneStrategy, Actor}
+import se.scalablesolutions.akka.actor.{OneForOneStrategy, Actor}
 import se.scalablesolutions.akka.state.{PersistentMap, CassandraStorageConfig, PersistentState}
-import se.scalablesolutions.akka.config.ScalaConfig._
 
 import javax.ws.rs.{PathParam, GET, Produces, Path}
 import java.util.Date
 import collection.mutable.HashMap
-
-class Boot {
-  val processor = new EventProcessor
-  object factory extends SupervisorFactory {
-    override def getSupervisorConfig: SupervisorConfig = {
-      SupervisorConfig(
-        RestartStrategy(OneForOne, 3, 100),
-        Supervise(
-          processor,
-          LifeCycle(Permanent, 100)) ::
-        Nil)
-    }
-  }
-  val supervisor = factory.newSupervisor
-  supervisor.startSupervisor
-  processor ! Init
-}
-
-// =============================
-// Event processor and storage
-// =============================
 
 /**
  * Usage:
@@ -46,15 +24,21 @@ class EventProcessor extends Actor {
   trapExit = true
   start
 
-  private var eventLog: List[StateChangeEvent] = Nil
+  // holds all current active ships mapped by name (non-persistent)
   private lazy val shipRepository = new HashMap[String, Ship]
+
+  // store the EventProcessor's state; the name of the created Ships
   private lazy val storedShipData: PersistentMap = {
     val storage = PersistentState.newMap(CassandraStorageConfig())
     storage.uuid = getClass.getName
     storage
   }
 
+  // could be made persistent, but currently not
+  private var eventLog: List[StateChangeEvent] = Nil
+
   // Internal messages for the actor; one for each "method", dispatched as an actor message
+  private case class Create(shipName: String, port: String)
   private case class Depart(shipName: String, port: String)
   private case class Arrive(shipName: String, port: String)
   private case class Destination(shipName: String)
@@ -65,18 +49,7 @@ class EventProcessor extends Actor {
   def process(@PathParam("event") event: String,
               @PathParam("shipName") shipName: String,
               @PathParam("port") port: String) = event match {
-    case "create" =>
-      shipRepository.get(shipName) match {
-        case Some(ship) => <success>Ship [{shipName}] already created</success>
-        case None =>
-          val reply = this !! NewShip(shipName, port)
-          reply match {
-            case None =>
-              <error>Could not create a new ship</error>
-            case Some(ship) =>
-              <success>Created new ship [{shipName}]</success>
-          }
-      }
+    case "create" =>      (this !! Create(shipName, port)).getOrElse(<error>Could not create ship</error>)
     case "depart" =>      (this !! Depart(shipName, port)).getOrElse(<error>Could not move ship</error>)
     case "arrive" =>      (this !! Arrive(shipName, port)).getOrElse(<error>Could not move ship</error>)
     case "destination" => (this !! Destination(shipName)).getOrElse(<error>Could get destination for ship</error>)
@@ -86,15 +59,21 @@ class EventProcessor extends Actor {
 
   def receive: PartialFunction[Any, Unit] = {
     case Init =>
-      // recreate persisted ships
-      storedShipData.values.foreach { shipData =>
-        val (ship: String, port: String) = shipData
+      // recreate persisted ships, pull data from DB
+      storedShipData.elements.foreach { shipData =>
+        val (_, (ship: String, port: String)) = shipData
         createNewShip(ship, port)
       }
 
-    case NewShip(shipName, port) =>
-      reply(createNewShip(shipName, port))
-
+    case Create(shipName, port) => reply {
+      shipRepository.get(shipName) match {
+        case Some(ship) => <success>Ship [{shipName}] already created</success>
+        case None =>
+          createNewShip(shipName, port)
+          <success>Created new ship [{shipName}]</success>
+      }
+    }
+    
     case Depart(shipName, port) => reply {
       shipRepository.get(shipName) match {
         case Some(ship) =>
