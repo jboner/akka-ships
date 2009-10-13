@@ -9,13 +9,12 @@ import scala.actors.Actor._
 // =============================
 
 class EventProcessor extends Actor {
-  def act = loop(Nil)
-
-  private def loop(log: List[DomainEvent]) {
-    react {
+  private var eventLog = List[DomainEvent]()
+  def act = {
+    receive {
       case event: DomainEvent => 
         event.process
-        loop(event :: log)
+        eventLog ::= event
 
       case unknown => 
         error("Unknown event: " + unknown)
@@ -49,22 +48,20 @@ case class ArrivalEvent(val time: Date, val port: Port, val ship: Ship) extends 
 // =============================
 
 class Ship(val name: String, val home: Port) extends Actor {
+  private var current: Port = home
 
-  def act = loop(home)
-
-  private def loop(current: Port) {
+  def act = loop {
     react {
-      case ArrivalEvent(time, port, _) => 
+      case ArrivalEvent(time, port, _) =>
         println(toString + " ARRIVED  at port   " + port + " @ " + time)
-        loop(port)
+        current = port
 
       case DepartureEvent(time, port, _) => 
         println(toString + " DEPARTED from port " + port  + " @ " + time)
-        loop(Port.AT_SEA)
+        current = Port.AT_SEA
 
       case CurrentPort => 
         reply(current)
-        loop(current)
 
       case unknown => 
         error("Unknown event: " + unknown)

@@ -5,7 +5,7 @@ import se.scalablesolutions.akka.config.ScalaConfig._
 
 class Boot {
   object factory extends SupervisorFactory {
-    override def getSupervisorConfig: SupervisorConfig = {
+    override def getSupervisorConfig = {
       SupervisorConfig(
         RestartStrategy(OneForOne, 3, 100),
         Supervise(

@@ -4,22 +4,18 @@ import java.util.Date
 
 import se.scalablesolutions.akka.config.ScalaConfig._
 import se.scalablesolutions.akka.actor.Actor
-import se.scalablesolutions.akka.state.{CassandraStorageConfig, PersistentState}
 
 // =============================
 // Define the events
 // =============================
 
 @serializable sealed trait Event
-
-case object Init extends Event
-case class NewShip(name: String, port: String) extends Event
-case object Reset extends Event
+case object ReplayEvents extends Event
 case object CurrentPort extends Event
 case object Replay extends Event
-case class ReplayUpTo(date: Date) extends Event
-case class Register(ship: Ship) extends Event
-case object Sink
+case object Sink extends Event
+
+case object GetEventLog extends Event
 
 abstract case class StateChangeEvent(val occurred: Date) extends Event {
   val recorded = new Date
