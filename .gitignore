@@ -21,4 +21,5 @@ tm.out
 *.tm.epoch
 .DS_Store
 .idea
+.svn
 
