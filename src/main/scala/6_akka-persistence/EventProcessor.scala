@@ -32,17 +32,17 @@ class EventProcessorFacade extends Actor {
   def process(@PathParam("event") event: String,
               @PathParam("shipName") shipName: String,
               @PathParam("port") port: String) = event match {
-    case "create" =>      (processor !! (List(event, shipName, port))).getOrElse(<error>Could not create ship</error>)
-    case "depart" =>      (processor !! (List(event, shipName, port))).getOrElse(<error>Could not move ship</error>)
-    case "arrive" =>      (processor !! (List(event, shipName, port))).getOrElse(<error>Could not move ship</error>)
-    case "destination" => (processor !! (List(event, shipName, ""))).getOrElse(<error>Could get destination for ship</error>)
-    case "sink" =>        processor !! List(event, shipName, ""); <success>Ship killed</success>
+    case "create" =>      (processor !! (event, shipName, port)).getOrElse(<error>Could not create ship</error>)
+    case "depart" =>      (processor !! (event, shipName, port)).getOrElse(<error>Could not move ship</error>)
+    case "arrive" =>      (processor !! (event, shipName, port)).getOrElse(<error>Could not move ship</error>)
+    case "destination" => (processor !! (event, shipName, "")).getOrElse(<error>Could get destination for ship</error>)
+    case "sink" =>        (processor !! (event, shipName, "")).getOrElse(<error>Could get destination for ship</error>)
     case unknown =>       <error>Unknown event: {unknown}</error>
   }
 
   def receive: PartialFunction[Any, Unit] = {
     case ReplayEvents =>
-      val eventLog: List[List[_]] = (processor !! GetEventLog).getOrElse(throw new IllegalStateException("Can't access event log"))
+      val eventLog: List[Tuple3[_,_,_]] = (processor !! GetEventLog).getOrElse(throw new IllegalStateException("Can't access event log"))
       eventLog.foreach(processor !! _)
     case unknown => log.error("Unknown event: %s", unknown)
   }
@@ -68,7 +68,7 @@ class EventProcessor extends Actor {
     case GetEventLog =>
       reply(eventLog.toList)
 
-    case event @ List("create", shipName: String, port: String) =>
+    case event @ ("create", shipName: String, port: String) =>
       val result = shipRepository.get(shipName) match {
         case Some(ship) =>
           <success>Ship [{shipName}] already created</success>
@@ -81,7 +81,7 @@ class EventProcessor extends Actor {
       eventLog add event // store in DB
       reply(result)
 
-    case event @ List("depart", shipName: String, port: String) =>
+    case event @ ("depart", shipName: String, port: String) =>
       val result = shipRepository.get(shipName) match {
         case Some(ship) =>
           val shipEvent = DepartureEvent(new Date, new Port(port), ship)
@@ -91,7 +91,7 @@ class EventProcessor extends Actor {
       eventLog add event // store in DB
       reply(result)
 
-    case event @ List("arrive", shipName: String, port: String) =>
+    case event @ ("arrive", shipName: String, port: String) =>
       val result = shipRepository.get(shipName) match {
         case Some(ship) =>
           val shipEvent = ArrivalEvent(new Date, new Port(port), ship)
@@ -101,7 +101,7 @@ class EventProcessor extends Actor {
       eventLog add event // store in DB
       reply(result)
 
-    case List("destination", shipName: String, port: String) =>
+    case ("destination", shipName: String, port: String) =>
       val result = shipRepository.get(shipName) match {
         case Some(ship) =>
           val reply = ship.asInstanceOf[Ship] !! CurrentPort
@@ -113,15 +113,14 @@ class EventProcessor extends Actor {
       }
       reply(result)
 
-    case List("sink", shipName: String, port: String) =>
+    case ("sink", shipName: String, port: String) =>
       shipRepository.get(shipName) match {
         case Some(ship) => ship.asInstanceOf[Ship] ! Sink
         case None => {}
       }
-      reply("success")
+      reply(<success>Ship killed</success>)
 
     case unknown =>
       log.error("Unknown event: %s", unknown)
-      reply("Unknown event: " + unknown)
   }
 }
