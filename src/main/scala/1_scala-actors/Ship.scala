@@ -1,26 +1,9 @@
 package training.ships.scalaactors
 
 import java.util.Date
+
 import scala.actors.Actor
 import scala.actors.Actor._
-
-// =============================
-// Event processor and storage
-// =============================
-
-class EventProcessor extends Actor {
-  private var eventLog = List[DomainEvent]()
-  def act = {
-    receive {
-      case event: DomainEvent => 
-        event.process
-        eventLog ::= event
-
-      case unknown => 
-        error("Unknown event: " + unknown)
-    }
-  }
-}
 
 // =============================
 // Define the events
@@ -44,7 +27,7 @@ case class ArrivalEvent(val time: Date, val port: Port, val ship: Ship) extends 
 }
 
 // =============================
-// Define the domain: Ship, Cargo, Port, Country
+// Define the Ship
 // =============================
 
 class Ship(val name: String, val home: Port) extends Actor {
@@ -71,14 +54,7 @@ class Ship(val name: String, val home: Port) extends Actor {
   override def toString = "Ship(" + name + ")"
 }
 
-case class Port(city: String, country: Country)
+case class Port(name: String)
 object Port {
-  val AT_SEA = new Port("AT SEA", Country.AT_SEA)
-}
-
-case class Country(val name: String)
-object Country {
-  val US = new Country("US")
-  val CANADA = new Country("CANADA")
-  val AT_SEA = new Country("AT_SEA")
+  val AT_SEA = new Port("AT SEA")
 }

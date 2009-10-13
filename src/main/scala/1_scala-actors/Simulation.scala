@@ -24,9 +24,9 @@ class Simulation {
     processor = new EventProcessor
     processor.start
     
-    portSFO = new Port("San Francisco", Country.US)
-    portLA = new Port("Los Angeles", Country.US)
-    portYYV = new Port("Vancouver", Country.CANADA)
+    portSFO = new Port("San Francisco")
+    portLA = new Port("Los Angeles")
+    portYYV = new Port("Vancouver")
 
     shipKR = new Ship("King Roy", portYYV)
     shipKR.start

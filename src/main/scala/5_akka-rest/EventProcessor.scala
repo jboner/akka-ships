@@ -18,94 +18,92 @@ import java.util.Date
  * </pre>
  */
 @Path("/ships/{event}/{shipName}/{port}")
-class EventProcessor extends Actor {
+class EventProcessorFacade extends Actor {
   faultHandler = Some(OneForOneStrategy(5, 5000))
   trapExit = true
   start
 
-  private var eventLog: List[StateChangeEvent] = Nil
-  private val shipRepository = new HashMap[String, Ship]
-
-  // Internal messages for the actor; one for each "method", dispatched as an actor message
-  private case class Depart(shipName: String, port: String)
-  private case class Arrive(shipName: String, port: String)
-  private case class Destination(shipName: String)
-  private case class Sink(shipName: String)
+  private val processor = new EventProcessor
+  startLink(processor)
 
   @GET
   @Produces(Array("text/xml"))
   def process(@PathParam("event") event: String,
               @PathParam("shipName") shipName: String,
               @PathParam("port") port: String) = event match {
-    case "create" =>
-      val reply = this !! NewShip(shipName, new Port(port))
-      reply match {
-        case None =>
-          <error>Could not create a new ship</error>
-        case Some(ship) =>
-          <success>Created new ship [{shipName}]</success>
-      }
-    case "depart" => this !! Depart(shipName, port)
-    case "arrive" => this !! Arrive(shipName, port)
-    case "destination" => this !! Destination(shipName)
-    case "sink" => Sink(shipName)
-
-    case unknown =>
-      <error>Unknown event: {unknown}</error>
+    case "create" =>      (processor !! (event, shipName, port)).getOrElse(<error>Could not create ship</error>)
+    case "depart" =>      (processor !! (event, shipName, port)).getOrElse(<error>Could not move ship</error>)
+    case "arrive" =>      (processor !! (event, shipName, port)).getOrElse(<error>Could not move ship</error>)
+    case "destination" => (processor !! (event, shipName, "")).getOrElse(<error>Could get destination for ship</error>)
+    case "sink" =>        (processor !! (event, shipName, "")).getOrElse(<error>Could get destination for ship</error>)
+    case unknown =>       <error>Unknown event: {unknown}</error>
   }
 
   def receive: PartialFunction[Any, Unit] = {
-    case event: StateChangeEvent =>
-      eventLog ::= event
-      reply(event.process)
+    case unknown => log.error("Unknown event: %s", unknown)
+  }
+}
 
-    case NewShip(shipName, port) =>
-      val ship = new Ship(shipName, port)
-      startLink(ship)
-      shipRepository += shipName -> ship
-      reply(ship)
+/**
+ * The actual implementation of EventProcessor.
+ */
+class EventProcessor extends Actor {
+  faultHandler = Some(OneForOneStrategy(5, 5000))
+  trapExit = true
+  start
 
-    case Depart(shipName, port) => reply {
-      shipRepository.get(shipName) match {
+  // holds all current active ships mapped by name (non-persistent)
+  private lazy val shipRepository = new HashMap[String, Ship]
+
+  def receive: PartialFunction[Any, Unit] = {
+    case event @ ("create", shipName: String, port: String) =>
+      val result = shipRepository.get(shipName) match {
         case Some(ship) =>
-          val reply = this !! DepartureEvent(new Date, new Port(port), ship)
+          <success>Ship [{shipName}] already created</success>
+        case None =>
+          val ship = new Ship(shipName, new Port(port))
+          startLink(ship) // supervise the Ship
+          shipRepository.put(shipName, ship)
+          <success>Created new ship [{shipName}]</success>
+      }
+      reply(result)
+
+    case event @ ("depart", shipName: String, port: String) =>
+      val result = shipRepository.get(shipName) match {
+        case Some(ship) =>
+          val shipEvent = DepartureEvent(new Date, new Port(port), ship)
+          <success>{shipEvent.process}</success>
+        case None => <error>Ship [{shipName}] has not been created yet</error>
+      }
+      reply(result)
+
+    case event @ ("arrive", shipName: String, port: String) =>
+      val result = shipRepository.get(shipName) match {
+        case Some(ship) =>
+          val shipEvent = ArrivalEvent(new Date, new Port(port), ship)
+          <success>{shipEvent.process}</success>
+        case None => <error>Ship [{shipName}] has not been created yet</error>
+      }
+      reply(result)
+
+    case ("destination", shipName: String, port: String) =>
+      val result = shipRepository.get(shipName) match {
+        case Some(ship) =>
+          val reply = ship.asInstanceOf[Ship] !! CurrentPort
           reply match {
-            case Some(result) => <success>{result}</success>
+            case Some(result) => <success>{result.toString}</success>
             case None =>         <error>Error in EventProcessor</error>
           }
         case None => <error>Ship [{shipName}] has not been created yet</error>
       }
-    }
-    
-    case Arrive(shipName, port) => reply {
-      shipRepository.get(shipName) match {
-        case Some(ship) =>
-          val reply = this !! ArrivalEvent(new Date, new Port(port), ship)
-          reply match {
-            case Some(result) => <success>{result}</success>
-            case None =>         <error>Error in EventProcessor</error>
-          }
-        case None => <error>Ship [{shipName}] has not been created yet</error>
-      }
-    }
+      reply(result)
 
-    case Destination(shipName) => reply {
+    case ("sink", shipName: String, port: String) =>
       shipRepository.get(shipName) match {
-        case Some(ship) =>
-          val reply = ship !! CurrentPort
-          reply match {
-            case Some(result) => <success>{result}</success>
-            case None =>         <error>Error in EventProcessor</error>
-          }
-        case None => <error>Ship [{shipName}] has not been created yet</error>
-      }
-    }
-
-    case Sink(shipName) =>
-      shipRepository.get(shipName) match {
-        case Some(ship) => ship ! Sink
+        case Some(ship) => ship.asInstanceOf[Ship] ! Sink
         case None => {}
       }
+      reply(<success>Ship killed</success>)
 
     case unknown =>
       log.error("Unknown event: %s", unknown)

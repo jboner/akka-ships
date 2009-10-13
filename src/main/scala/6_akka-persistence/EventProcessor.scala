@@ -48,6 +48,9 @@ class EventProcessorFacade extends Actor {
   }
 }
 
+/**
+ * The actual implementation of EventProcessor.
+ */
 class EventProcessor extends Actor {
   faultHandler = Some(OneForOneStrategy(5, 5000))
   makeTransactionRequired

@@ -9,7 +9,7 @@ class Boot {
       SupervisorConfig(
         RestartStrategy(OneForOne, 3, 100),
         Supervise(
-          new EventProcessor,
+          new EventProcessorFacade,
           LifeCycle(Permanent, 100)) ::
         Nil)
     }

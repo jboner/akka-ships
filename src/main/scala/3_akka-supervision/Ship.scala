@@ -1,8 +1,10 @@
-package training.ships.akka
+package training.ships.akka_supervision
+
+import java.util.Date
 
 import se.scalablesolutions.akka.actor.Actor
-import java.util.Date
-import se.scalablesolutions.akka.state.{PersistentState, MongoStorageConfig}
+import se.scalablesolutions.akka.config.ScalaConfig._
+
 // =============================
 // Define the events
 // =============================
@@ -14,6 +16,11 @@ case object CurrentPort extends Event
 
 case object Replay extends Event
 case class ReplayUpTo(date: Date) extends Event
+
+// ------- NEW -------
+case class Register(ship: Ship) extends Event
+case object Sink
+// ------- NEW -------
 
 abstract case class StateChangeEvent(val occurred: Date) extends Event {
   val recorded = new Date
@@ -30,22 +37,13 @@ case class ArrivalEvent(val time: Date, val port: Port, val ship: Ship) extends 
 }
 
 // =============================
-// Define the domain: Ship, Cargo, Port, Country
+// Define the Ship
 // =============================
 
-case class Port(val city: String, val country: Country)
-object Port {
-  val AT_SEA = new Port("AT SEA", Country.AT_SEA)
-}
-
-case class Country(val name: String)
-object Country {
-  val US = new Country("US")
-  val CANADA = new Country("CANADA")
-  val AT_SEA = new Country("AT_SEA")
-}
-
 class Ship(val shipName: String, private var currentDestination: Port) extends Actor {
+// ------- NEW -------
+  lifeCycleConfig = Some(LifeCycle(Permanent, 100))
+// ------- NEW -------
   
   def receive: PartialFunction[Any, Unit] = {
     case ArrivalEvent(time, port, _) =>
@@ -62,33 +60,19 @@ class Ship(val shipName: String, private var currentDestination: Port) extends A
     case CurrentPort =>
       reply(currentDestination)
 
+// ------- NEW -------
+    case Sink =>
+      throw new RuntimeException("I'm killed: " + this)
+// ------- NEW -------
+
     case unknown =>
       log.error("Unknown event: %s", unknown)
   }
-
+  
   override def toString = "Ship(" + shipName + ")"
 }
 
-// =============================
-// Event processor and storage
-// =============================
-
-object EventProcessor extends Actor {
-  private var eventLog: List[StateChangeEvent] = Nil
-  start
-  
-  def receive: PartialFunction[Any, Unit] = {
-    case event: StateChangeEvent =>
-      event.process
-      eventLog ::= event
-
-    case Replay =>
-      eventLog.reverse.foreach(_.process)
-
-    case ReplayUpTo(date) =>
-      eventLog.reverse.filter(_.occurred.getTime <= date.getTime).foreach(_.process)
-
-    case unknown =>
-      log.error("Unknown event: %s", unknown)
-  }
+case class Port(val name: String)
+object Port {
+  val AT_SEA = new Port("AT SEA")
 }

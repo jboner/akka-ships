@@ -9,9 +9,9 @@ class Simulation extends TestCase {
   private var portSFO, portLA, portYYV: Port = _
 
   override def setUp = {
-    portSFO = new Port("San Francisco", Country.US)
-    portLA = new Port("Los Angeles", Country.US)
-    portYYV = new Port("Vancouver", Country.CANADA)
+    portSFO = new Port("San Francisco")
+    portLA = new Port("Los Angeles")
+    portYYV = new Port("Vancouver")
 
     shipKR = new Ship("King Roy", portYYV)
     EventProcessor ! Register(shipKR)
